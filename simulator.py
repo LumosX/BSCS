@@ -1,5 +1,6 @@
 import random
-from os import system
+import cmd
+import os
 
 
 class Dice:
@@ -157,6 +158,7 @@ class Battlefield:
             print(i, "|", x)
 
     def GetActor(self, index):
+        print(index)
         if index.isdigit():
             return self.actors[int(index)]
         else:
@@ -167,8 +169,6 @@ class Battlefield:
 
 
 ##############################################################################################################
-
-
 warrior = Actor("Sir Richard", 10, 5, 6, 3, 18, "1d6+2", [
     ("the Enchanted Sword", None, None, None),
 ])
@@ -196,71 +196,72 @@ s4 = Actor("Skeleton 4", 9, 9, 9, 3, 21, "2d6")
 battlefield = Battlefield([warrior, trickster, sage, enchanter, s1, s2, s3, s4])
 
 
-def PrintCommands():
-    print("COMMANDS:")
-    print("> 's' or 'status' or 'battlefield' = displays the situation on the battlefield.")
-    print("> 'h' or 'help' = displays this list.")
-    print(
-        "> 'a <X> <Y> [name]' (or 'attack') = makes actor X attack actor Y with attack [name] (default one if none specified). X and Y can be the IDs from the status list, or (partial) names.")
-    print("> 'cls' or 'clear' = clears the terminal screen (use the one for your OS)")
-    print("> 'print <string>' = adds the argument to the output file. Use this for notes and so on.")
-    print("> 'q' or 'x' or 'quit' or 'exit' = quits simulator")
-    print(
-        "> 'exec <code>' = executes the code supplied afterwards. Can be used to modify the battlefield directly. Use at your own risk.")
-
-
-print("")
-print("BLOOD SWORD COMBAT SIMULATOR")
-print("(created by Lumos, 2018)")
-print("Edit the script file to set up your battlefield with greater ease.")
-print("")
-battlefield.Status()
-print("")
-
-
 def LogString(addition):
     with open("combatLog.txt", "w", encoding="utf-8") as file:
         file.write(addition)
         file.flush()
 
 
-done = False
+class Interpreter(cmd.Cmd):
+    prompt = "\n>>>>> Awaiting command: "
 
-while done is False:
-    print("")
-    print(">>>>> Awaiting command: ", end="")
-    cmd = input()
-    # print("")
-    if cmd in ['q', 'x', 'quit', 'exit']:
-        done = True
-    elif cmd in ['s', 'status', 'battlefield']:
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+
+    def do_exit(self, *args):
+        """Exit the simulator."""
+        return True
+    do_EOF = do_x = do_q = do_quit = do_exit
+
+    def do_status(self):
         battlefield.Status()
-    elif cmd in ['h', 'help']:
-        PrintCommands()
-    # elif cmd.startswith("? ")
-    ## TODO: LIST ATTACKS
-    # elif cmd.startswith("log health")
-    ## TODO: LOG ALL ACTORS' HEALTH TO FILE
-    elif cmd in ['cls', 'clear']:
-        system(cmd)
-    elif cmd.startswith("print "):
-        LogString(result + "\n")
-        print("Line added to the combat log.")
-    elif cmd.startswith("exec "):
-        exec(cmd.split(" ", 1)[1])
-        print("Command executed.")
-    # And now for the actual fighting commands:
-    elif cmd.startswith("a ") or cmd.startswith("attack "):
-        params = cmd.split(" ")  # a <actor> <target> [attack]
-        actor = battlefield.GetActor(params[1])
-        target = battlefield.GetActor(params[2])
-        attack = params[3] if len(params) >= 4 else None
-        # print(actor)
-        # print(target)
+    do_s = do_battlefield = do_status
+
+    def do_log(self, arg):
+        LogString(arg + "\n")
+
+    def do_attack(self, args):
+        print(args)
+        params = args.split(" ")
+        actor = battlefield.GetActor(params[0])
+        target = battlefield.GetActor(params[1])
+        attack = params[2] if len(params) >= 3 else None
         if actor is None or target is None:
             print("Invalid combatants specified. Try again.")
-            continue
-        # If all's well, attack
+            return False
+        # If all's well, do the attack
         result = actor.Attack(target, attack)
         LogString(result + "\n")
         print(result)
+    do_a = do_attack
+
+    def do_clear(self, _):
+        os.system('cls' if os.name == 'nt' else 'clear')
+    do_cls = do_clear
+
+    def do_help(self, arg):
+        """List available commands."""
+        # TODO fix aliases up somehow
+        cmd.Cmd.do_help(self, arg)
+    do_h = do_help
+
+
+
+    def emptyline(self):
+        pass
+
+    def default(self, line):
+        cmd, arg, line = self.parseline(line)
+        print(f'Invalid command: "{cmd}"')
+
+
+print("")
+print("BLOOD SWORD COMBAT SIMULATOR")
+print("(created by Lumos, 2018)")
+print("Edit the script file to set up your battlefield with greater ease.")
+battlefield.Status()
+interpreter = Interpreter()
+interpreter.cmdloop()
+
+
+
