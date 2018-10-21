@@ -1,41 +1,31 @@
 import random
 import cmd
 import os
+import re
+from enum import Enum
 
 
 class Dice:
     def __init__(self, value=None):
         self.value = value or "1d6"  # it should be a string
         # Decompile value into number of dice, number of sides, and any modifiers
-        arr = self.value.split("d")  # index 0 = num dice; index 1 = num sizes +/- any modifiers
-        self.numDice = int(arr[0])
-        modifier = "0"
-        if "+" in arr[1]:
-            modifierMult = 1
-            t = arr[1].split("+")
-            self.numSides = int(t[0])
-            modifier = t[1]
-        elif "-" in arr[1]:
-            modifierMult = -1
-            t = arr[1].split("-")
-            self.numSides = int(t[0])
-            modifier = t[1]
-        else:
-            self.numSides = int(arr[1])
-            modifierMult = 0
-        self.modifier = int(modifier) * modifierMult
+        regex = re.match(r"(\d*)d(\d*)([-+]?\d*)", self.value) # this is quite wonderful
+        self.numDice = int(regex.group(1) or "1")
+        self.numSides = int(regex.group(2) or "6")
+        self.modifier = int(regex.group(3) or "0") # default value is 1d6+0
 
     # We'd also like a function that rolls the dice, right?
     def Roll(self):
-        total = 0
-        for _ in range(self.numDice):
-            total += random.randint(1, self.numSides)
-        total += self.modifier
-        return total
-
+        return self.modifier + (0 if self.numDice == 0 else
+            sum([random.randint(1, self.numSides) for _ in range(self.numDice)]))
 
 #############################################
 class Attack:
+    class Type(Enum):
+        Weapon = 0,
+        Blasting = 1,
+        Psychic = 2
+
     def __init__(self, ownerActor, name=None, dice=None, damage=None, type=None, spellLevel=None):
         self.owner = ownerActor
         self.name = name or "Default"
@@ -101,10 +91,10 @@ class Actor:
         else:
             self.attacks = [Attack(self,
                                    ("Default" if len(x) < 1 or x[0] is None else x[0]),  # Name
-                                   ("2d6" if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
-                                   (damage if len(x) < 3 or x[2] is None else x[2]),  # Damage
-                                   ("Weapon" if len(x) < 4 or x[3] is None else x[3]),
-                                   (0 if len(x) < 5 or x[4] is None else x[4]))  # Type
+                                   ("2d6"     if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
+                                   (damage    if len(x) < 3 or x[2] is None else x[2]),  # Damage
+                                   ("Weapon"  if len(x) < 4 or x[3] is None else x[3]),
+                                   (0         if len(x) < 5 or x[4] is None else x[4]))  # Type
                             for x in attacks]
             # print(self.attacks)
 
