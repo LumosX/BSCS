@@ -31,7 +31,7 @@ class Attack:
         self.name = name or "Default"
         self.dice = Dice(dice) or Dice("2d6")
         self.damage = Dice(damage) or ownerActor.damage
-        self.type = type or "Weapon"
+        self.type = type if type is not None and isinstance(type, Attack.Type) else Attack.Type.Weapon
         self.spellLevel = spellLevel or 0
 
     def Resolve(self):
@@ -39,7 +39,7 @@ class Attack:
         result = ""
         damageRoll = self.damage.Roll()
         # Weapon attacks: roll attack dice <= FPR
-        if self.type == "Weapon":
+        if self.type == Attack.Type.Weapon:
             result = "(ROLLED " + str(roll)
             t = str(self.owner.FPR) + ") "
             if roll < self.owner.FPR:
@@ -50,7 +50,7 @@ class Attack:
                 result += " > " + t + "Miss!"
             return (roll, damageRoll, result, roll <= self.owner.FPR)
         # Blasting spells: roll attack dice + level <= PSY - numSpellsPrepared
-        elif self.type == "Blasting":
+        elif self.type == Attack.Type.Blasting:
             result = "(ROLLED " + str(roll) + " + " + str(self.spellLevel)
             t = str(self.owner.PSY) + " - " + str(self.owner.numSpellsPrepared) + ") "
             if roll + self.spellLevel < self.owner.PSY - self.owner.numSpellsPrepared:
@@ -66,7 +66,7 @@ class Attack:
             return 0, 0, "Invalid attack type.", False
 
     def __str__(self):
-        return self.name + ", " + self.type + ", dice: " + self.dice.value + ", damage: " + self.damage.value + " (level, if a spell: " + str(
+        return self.name + ", " + str(self.type) + ", dice: " + self.dice.value + ", damage: " + self.damage.value + " (level, if a spell: " + str(
             self.spellLevel) + ")"
 
     # I know it's a hack, but I don't care
@@ -86,15 +86,16 @@ class Actor:
         self.currentHP = END  # Current Endurance
         self.damage = Dice(damage)  # Regular weapon damage
         self.numSpellsPrepared = numSpellsPrepared or 0
+        # Custom tuple parsing. Why? Because of reasons...
         if attacks is None:
             self.attacks = [Attack(self, "Default", "2d6", damage, "Weapon")]
         else:
             self.attacks = [Attack(self,
-                                   ("Default" if len(x) < 1 or x[0] is None else x[0]),  # Name
-                                   ("2d6"     if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
-                                   (damage    if len(x) < 3 or x[2] is None else x[2]),  # Damage
-                                   ("Weapon"  if len(x) < 4 or x[3] is None else x[3]),
-                                   (0         if len(x) < 5 or x[4] is None else x[4]))  # Type
+                                   ("Default"           if len(x) < 1 or x[0] is None else x[0]),  # Name
+                                   ("2d6"               if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
+                                   (damage              if len(x) < 3 or x[2] is None else x[2]),  # Damage
+                                   (Attack.Type.Weapon  if len(x) < 4 or x[3] is None else Attack.Type[x[3]]),
+                                   (0                   if len(x) < 5 or x[4] is None else x[4]))  # Type
                             for x in attacks]
             # print(self.attacks)
 
@@ -110,11 +111,13 @@ class Actor:
         if attack is None:
             print("No such attack found for actor", self.name)
             return "No such attack found for actor " + self.name
+
         # Print attack statement
         attackString = self.name + " attacks " + targetActor.name + (
             ". " if attack.name == "Default" else " using " + attack.name + ". ")
         (numRolled, damageDealt, result, attackHit) = attack.Resolve()
         attackString += result
+
         # If the attack missed, that's it.
         if not attackHit:
             return attackString
@@ -148,7 +151,7 @@ class Battlefield:
             print(i, "|", x)
 
     def GetActor(self, index):
-        print(index)
+        #print(index)
         if index.isdigit():
             return self.actors[int(index)]
         else:
@@ -211,7 +214,7 @@ class Interpreter(cmd.Cmd):
         LogString(arg + "\n")
 
     def do_attack(self, args):
-        print(args)
+        #print(args)
         params = args.split(" ")
         actor = battlefield.GetActor(params[0])
         target = battlefield.GetActor(params[1])
