@@ -9,15 +9,18 @@ class Dice:
     def __init__(self, value = None):
         self.value = value or "1d6"  # it should be a string
         # Decompile value into number of dice, number of sides, and any modifiers
-        regex = re.match(r"(\d*)d(\d*)([-+]?\d*)", self.value) # this is quite wonderful
-        self.num_dice = int(regex.group(1) or "1")
-        self.num_sides = int(regex.group(2) or "6")
-        self.modifier = int(regex.group(3) or "0") # default value is 1d6+0
+        regex = re.match(r"(-?)(\d*)d([-+]?\d*)([-+]?\d*)", self.value) # this is quite wonderful
+        self.minus = -1 if regex.group(1) else 1
+        self.num_dice = int(regex.group(2) or "1")
+        self.num_sides = int(regex.group(3) or "0")
+        self.modifier = int(regex.group(4) or "0") # default value is 1d6+0
 
     # We'd also like a function that rolls the dice, right?
     def roll(self):
-        return self.modifier + (0 if self.num_dice == 0 else
-            sum([random.randint(1, self.num_sides) for _ in range(self.num_dice)]))
+        if self.num_dice < 0 or self.num_sides < 0:
+            return -1
+        return self.modifier + (0 if self.num_dice == 0 or self.num_sides == 0 else
+            sum([random.randint(1, self.num_sides) for _ in range(self.num_dice)])) * self.minus
 
 
 #############################################
@@ -162,35 +165,33 @@ class Battlefield:
 
 
 ##############################################################################################################
-warrior = Actor("Sir Richard", 10, 5, 6, 3, 18, "1d6+2", [
+warrior = Actor("Sir Richard", 10, 7, 6, 3, 25, "2d6", [
     ("the Enchanted Sword", None, None, None),
 ])
-trickster = Actor("Trickster", 6, 8, 6, 2, 18, "1d6+1", [
+trickster = Actor("Trickster", 7, 8, 7, 2, 24, "1d6+2", [
     ("his sword", None, None, None),
     ("the Dagger of Vislet", "2d6", "1d6", "Weapon"),
     ("his bow", "2d6", "1d6", "Weapon"),
 ])
-sage = Actor("Mentok", 7, 6, 7, 3, 15, "1d6+1", [
+sage = Actor("Mentok", 7, 7, 8, 3, 20, "1d6+2", [
     ("his quarterstaff", None, None, None),
     ("the Magic Bow", "2d6", "1d6+1", "Weapon"),
-    ("Quarterstaff Technique", "2d8", "2d6+1", "Weapon"),
+    ("Quarterstaff Technique", "2d8", "2d6+2", "Weapon"),
 ])
-enchanter = Actor("Enchanter", 2, 7, 12, 2, 15, "1d6", [
+enchanter = Actor("Enchanter", 4, 7, 12, 2, 20, "1d6+1", [
     ("his sword", None, None, None),
     ("Swordthrust", "2d6", "3d6+3", "Blasting", 2),
     ("Nemesis Bolt", "2d6", "7d6+7", "Blasting", 5),
 ], 1)
 
-s1 = Actor("Skeleton 1", 9, 9, 9, 3, 21, "2d6")
-s2 = Actor("Skeleton 2", 9, 9, 9, 3, 21, "2d6")
-s3 = Actor("Skeleton 3", 9, 9, 9, 3, 21, "2d6")
-s4 = Actor("Skeleton 4", 9, 9, 9, 3, 21, "2d6")
-
-battlefield = Battlefield([warrior, trickster, sage, enchanter, s1, s2, s3, s4])
+battlefield = Battlefield([warrior, trickster, sage, enchanter,
+    Actor("Thulander 1", 8, 7, 6, 0, 30, "2d6+1"),
+    Actor("Thulander 2", 8, 7, 6, 0, 30, "2d6+1"),
+])
 
 
 def log_string(addition):
-    with open("combatLog.txt", "w", encoding="utf-8") as file:
+    with open("combatLog.txt", "a+", encoding="utf-8") as file:
         file.write(addition)
         file.flush()
 
@@ -213,6 +214,11 @@ class Interpreter(cmd.Cmd):
 
     def do_log(self, arg):
         log_string(arg + "\n")
+        
+    def do_roll(self, arg):
+        dice =  Dice(arg)
+        print("Rolling", dice.value + "; got", dice.roll())
+    do_r = do_roll
 
     def do_attack(self, args):
         params = args.split(" ")
@@ -223,7 +229,7 @@ class Interpreter(cmd.Cmd):
             print("Invalid combatants specified. Try again.")
             return False
         # If all's well, do the attack
-        result = actor.Attack(target, attack)
+        result = actor.attack(target, attack)
         log_string(result + "\n")
         print(result)
     do_a = do_attack
