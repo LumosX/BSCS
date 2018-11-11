@@ -3,24 +3,25 @@ import cmd
 import os
 import re
 from enum import Enum
+from typing import List
 
 
 class Dice:
-    def __init__(self, value = None):
+    def __init__(self, value=None):
         self.value = value or "1d6"  # it should be a string
         # Decompile value into number of dice, number of sides, and any modifiers
-        regex = re.match(r"(-?)(\d*)d([-+]?\d*)([-+]?\d*)", self.value) # this is quite wonderful
+        regex = re.match(r"(-?)(\d*)d([-+]?\d*)([-+]?\d*)", self.value)  # this is quite wonderful
         self.minus = -1 if regex.group(1) else 1
         self.num_dice = int(regex.group(2) or "1")
         self.num_sides = int(regex.group(3) or "0")
-        self.modifier = int(regex.group(4) or "0") # default value is 1d6+0
+        self.modifier = int(regex.group(4) or "0")  # default value is 1d6+0
 
     # We'd also like a function that rolls the dice, right?
     def roll(self):
         if self.num_dice < 0 or self.num_sides < 0:
             return -1
         return self.modifier + (0 if self.num_dice == 0 or self.num_sides == 0 else
-            sum([random.randint(1, self.num_sides) for _ in range(self.num_dice)])) * self.minus
+                                sum([random.randint(1, self.num_sides) for _ in range(self.num_dice)])) * self.minus
 
 
 #############################################
@@ -35,10 +36,11 @@ class Attack:
         self.name = name or "Default"
         self.dice = Dice(dice) or Dice("2d6")
         self.damage = Dice(damage) or owner_actor.damage
-        self.type = attack_type if attack_type is not None and isinstance(attack_type, Attack.Type) else Attack.Type.Weapon
+        self.type = attack_type if attack_type is not None and \
+                                   isinstance(attack_type, Attack.Type) else Attack.Type.Weapon
         self.spellLevel = spell_level or 0
 
-    def resolve(self, target_actor = None):
+    def resolve(self, target_actor=None):
         roll = self.dice.roll()
         damage_roll = self.damage.roll()
         # Weapon attacks: roll attack dice <= FPR
@@ -78,8 +80,10 @@ class Attack:
 
 
 #############################################
+# noinspection PyPep8Naming
 class Actor:
-    def __init__(self, name, FPR, AWA, PSY, ARM, END, damage, attacks=None, num_spells_prepared=None):
+    def __init__(self, name: str, FPR: int, AWA: int, PSY: int, ARM: int, END: int,
+                 damage: str, attacks=None, num_spells_prepared: int=None):
         self.name = name
         self.FPR = FPR  # Fighting Prowess
         self.AWA = AWA  # Awareness
@@ -94,17 +98,17 @@ class Actor:
             self.attacks = [Attack(self, "Default", "2d6", damage, "Weapon")]
         else:
             self.attacks = [Attack(self,
-                                   ("Default"           if len(x) < 1 or x[0] is None else x[0]),  # Name
-                                   ("2d6"               if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
-                                   (damage              if len(x) < 3 or x[2] is None else x[2]),  # Damage
-                                   (Attack.Type.Weapon  if len(x) < 4 or x[3] is None else Attack.Type[x[3]]),
-                                   (0                   if len(x) < 5 or x[4] is None else x[4]))  # Type
+                                   ("Default" if len(x) < 1 or x[0] is None else x[0]),  # Name
+                                   ("2d6" if len(x) < 2 or x[1] is None else x[1]),  # Dice roll
+                                   (damage if len(x) < 3 or x[2] is None else x[2]),  # Damage
+                                   (Attack.Type.Weapon if len(x) < 4 or x[3] is None else Attack.Type[x[3]]),
+                                   (0 if len(x) < 5 or x[4] is None else x[4]))  # Type
                             for x in attacks]
             # print(self.attacks)
 
     #
     #
-    def attack(self, target_actor, attack_name = None):
+    def attack(self, target_actor: 'Actor', attack_name: str=None):
         # Select correct attack, if available.
         if attack_name is None:
             attack_name = "Default"
@@ -129,7 +133,7 @@ class Actor:
         target_actor.currentHP -= attack_damage
         attack_string += (" Dealt " + str(damageDealt) + " - " + str(target_actor.ARM) + " = " + str(
             attack_damage) + " damage, " +
-                         target_actor.name + " " + str(target_actor.currentHP) + "/" + str(target_actor.END) + ".")
+                          target_actor.name + " " + str(target_actor.currentHP) + "/" + str(target_actor.END) + ".")
         return attack_string
 
     def __str__(self):
@@ -144,7 +148,7 @@ class Battlefield:
     def __init__(self, actors=None):
         self.actors = actors or []
 
-    def add(self, actors):
+    def add(self, actors: List[Actor]):
         self.actors.extend(actors)
 
     def status(self):
@@ -153,8 +157,8 @@ class Battlefield:
         for i, x in enumerate(self.actors):
             print(i, "|", x)
 
-    def get_actor(self, index):
-        #print(index)
+    def get_actor(self, index) -> Actor:
+        # print(index)
         if index.isdigit():
             return self.actors[int(index)]
         else:
@@ -185,15 +189,15 @@ enchanter = Actor("Enchanter", 4, 7, 12, 2, 20, "1d6+1", [
 ], 1)
 
 battlefield = Battlefield([warrior, trickster, sage, enchanter,
-    Actor("Thulander 1", 8, 7, 6, 0, 30, "2d6+1"),
-    Actor("Thulander 2", 8, 7, 6, 0, 30, "2d6+1"),
-])
+                           Actor("Thulander 1", 8, 7, 6, 0, 30, "2d6+1"),
+                           Actor("Thulander 2", 8, 7, 6, 0, 30, "2d6+1"),
+                           ])
 
 
 def log_string(addition):
     with open("combatLog.txt", "a+", encoding="utf-8") as file:
         file.write(addition)
-        file.flush()
+        file.flush()  # Probably unnecessary.
 
 
 # noinspection PyMethodMayBeStatic
@@ -203,21 +207,25 @@ class Interpreter(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
 
+    # noinspection PyUnusedLocal
     def do_exit(self, *args):
         """Exit the simulator."""
         return True
+
     do_EOF = do_x = do_q = do_quit = do_exit
 
     def do_status(self):
         battlefield.status()
+
     do_s = do_battlefield = do_status
 
     def do_log(self, arg):
         log_string(arg + "\n")
-        
+
     def do_roll(self, arg):
-        dice =  Dice(arg)
+        dice = Dice(arg)
         print("Rolling", dice.value + "; got", dice.roll())
+
     do_r = do_roll
 
     def do_attack(self, args):
@@ -232,19 +240,20 @@ class Interpreter(cmd.Cmd):
         result = actor.attack(target, attack)
         log_string(result + "\n")
         print(result)
+
     do_a = do_attack
 
     def do_clear(self, _):
         os.system('cls' if os.name == 'nt' else 'clear')
+
     do_cls = do_clear
 
     def do_help(self, arg):
         """List available commands."""
         # TODO fix aliases up somehow
         cmd.Cmd.do_help(self, arg)
+
     do_h = do_help
-
-
 
     def emptyline(self):
         pass
@@ -261,6 +270,3 @@ print("Edit the script file to set up your battlefield with greater ease.")
 battlefield.status()
 interpreter = Interpreter()
 interpreter.cmdloop()
-
-
-
