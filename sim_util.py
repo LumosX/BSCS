@@ -21,14 +21,18 @@ class Dice:
 
 
 #############################################
+# A perk is applied to an actor and modifies THIS actor's pytho
 class Perk:
-    def __init__(self, FPR=None, AWA=None, PSY=None, ARM=None, END=None, damage):
-
-
-
-
-
-
+    def __init__(self, FPR=None, AWA=None, PSY=None, ARM=None, END=None, damage=None, turns=None):
+        self.turns_left = turns or 1500000 # If no turns have been specified, make it "eternal"
+        self.modifiers = {
+            "fpr": FPR or 0, # Fighting Prowess
+            "awa": AWA or 0, # Awareness
+            "psy": PSY or 0, # Psychic Ability
+            "end": END or 0, # Endurance
+            "armour": ARM or 0, # Armour
+            "damage": damage or Dice("0d0") # Extra damage?
+        }
 
 # This converts lists of positive and negative ints to a pretty string.
 def prettify_ints(int_list):
@@ -151,6 +155,16 @@ class Attack:
 class Actor:
     def __init__(self, name, FPR, AWA, PSY, ARM, END, damage, attacks=None, perks=None, num_spells_prepared=None):
         self.name = name
+        self.attributes = {
+            "fpr": FPR, # Fighting Prowess
+            "awa": AWA, # Awareness
+            "psy": PSY, # Psychic Ability
+            "end": END, # Endurance (HP)
+            "armour": ARM, # Armour
+            "damage": damage # Basic "damage per blow"
+        }
+
+
         self.FPR = FPR  # Fighting Prowess
         self.AWA = AWA  # Awareness
         self.PSY = PSY  # Psychic Ability
