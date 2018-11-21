@@ -40,18 +40,24 @@ class Perk:
         self.name = name
         self.turns_remaining = turns or 1500000  # If no turns have been specified, make it "eternal"
         self.values = {
-            "fpr": fpr or 0,  # Fighting Prowess
-            "awa": awa or 0,  # Awareness
-            "psy": psy or 0,  # Psychic Ability
-            "end": end or 0,  # Endurance
-            "armour": armour or 0,  # Armour
-            "to_hit": to_hit or Dice("0"),  # To hit penalties for Nighthowl
-            "damage": damage or Dice("0"),  # Extra damage or damage penalties
-            "extra_dodge": extra_dodge or Dice("0"),  # For stuff like Dodging Technique
+            "FPR": fpr or 0,  # Fighting Prowess
+            "AWA": awa or 0,  # Awareness
+            "PSY": psy or 0,  # Psychic Ability
+            "END": end or 0,  # Endurance
+            "Armour": armour or 0,  # Armour
+            "To hit": to_hit or Dice("0"),  # To hit penalties for Nighthowl
+            "Damage": damage or Dice("0"),  # Extra damage or damage penalties
+            "Dodge": extra_dodge or Dice("0"),  # For stuff like Dodging Technique
         }
 
     # TODO: define the ToString method.
-    # e.g. "Dodging Technique (Dodge +1)" or "Prepared Spells (PSY -1)"
+    # e.g. "Dodging Technique (Dodge +1)" or "Prepared Spells (PSY -1)" or "Skill Amulet (FPR +7, Armour +7)"
+    def __str__(self):
+        # Get all attributes that the perk modifies
+        mods = [attr + " " + ["", "+"][val > 0] + str(val) for attr, val in self.values.items()
+                if (isinstance(val, Dice) and val.value != "0") or (not isinstance(val, Dice) and val != 0)]
+        return self.name + ("" if len(mods) == 0 else " (" + ", ".join(mods) + ")")
+
 
 
 #############################################
@@ -237,7 +243,8 @@ class Actor:
         # And so is damage, because it consists of "Dice" objects.
         total_damage = " + ".join([x.value for x in self.list_attribute('damage') if x != 0 and x.value != "0"])
         # And also perks: if we're affected by any perks, list them.
-        perks = "" if len(self.perks) == 0 else "\n    Affected by: " + ", ".join(map(lambda x: x.name, self.perks))
+        #perks = "" if len(self.perks) == 0 else "\n    Affected by: " + ", ".join(map(lambda x: x.name, self.perks))
+        perks = "" if len(self.perks) == 0 else "\n    Affected by: " + (",\n" + " " * 17).join(map(lambda x: str(x), self.perks))
 
         return (self.name + " (" + str(self.currentHP) + "/" + str(self.end) + ")" +
                 ", FPR " + prettify_ints(self.list_attribute('fpr')) +

@@ -13,7 +13,8 @@ trickster = Actor("Trickster", fpr=7, awa=8, psy=7, armour=2, end=24, damage="1d
     Attack("the Dagger of Vislet", to_hit="2d6", damage="1d6", attack_type="Weapon"),
     Attack("his bow", "2d6", "1d6", "Weapon"),
 ], perks=[
-    Perk("Dodging Technique", extra_dodge=1)
+    Perk("Dodging Technique", extra_dodge=1),
+    Perk("Skull Amulet", fpr=7, armour=7),
 ])
 sage = Actor("Mentok", fpr=7, awa=7, psy=8, armour=3, end=20, damage="1d6+2", attacks=[
     Attack("his quarterstaff"),

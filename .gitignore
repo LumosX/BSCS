@@ -1,3 +1,4 @@
 combatLog.txt
 .idea/*
 glossaryHelper.py
+__pycache__/
