@@ -3,7 +3,6 @@ import random
 import cmd
 import os
 
-
 #############################################
 class Dice:
     def __init__(self, value=None):
@@ -21,7 +20,7 @@ class Dice:
             if regex is None:
                 raise AttributeError("A dice object cannot be initialised with a value of '" + str(value) + "'")
             else:
-                self.modifier = regex.group(1)
+                self.modifier = int(regex.group(1))
                 self.minus = 1
                 self.num_dice = 0
                 self.num_sides = 0
@@ -36,11 +35,12 @@ class Dice:
     def __str__(self):
         return self.value
 
+
 #############################################
 # A perk is applied to an actor and modifies THIS actor's properties.
 class Perk:
-    def __init__(self, name, fpr=None, awa=None, psy=None, armour=None, end=None,
-                 to_hit=None, damage=None, turns=None, extra_dodge=None):
+    def __init__(self, name, fpr=None, awa=None, psy=None, armour=None, end=None, to_hit=None,
+                 weapon_damage=None, spell_damage=None, turns=None, extra_dodge=None):
         self.name = name
         self.turns_remaining = turns or 1500000  # If no turns have been specified, make it "eternal"
         self.values = {
@@ -49,17 +49,17 @@ class Perk:
             "PSY": psy or 0,  # Psychic Ability
             "END": end or 0,  # Endurance
             "Armour": armour or 0,  # Armour
-            "To hit": to_hit or Dice("0"),  # To hit penalties for Nighthowl
-            "Damage": damage or Dice("0"),  # Extra damage or damage penalties
-            "Dodge": extra_dodge or Dice("0"),  # For stuff like Dodging Technique
+            "To hit": to_hit or "0",  # To hit penalties for Nighthowl
+            "Weapon Damage": weapon_damage or "0",  # Weapon damage mods only
+            "Spell Damage": spell_damage or "0",  # Spell damage mods only (both blasting and psychic)
+            "Dodge": extra_dodge or "0",  # For stuff like Dodging Technique
         }
 
     #
     # e.g. "Dodging Technique (Dodge +1)" or "Prepared Spells (PSY -1)" or "Skill Amulet (FPR +7, Armour +7)"
     def __str__(self):
         # Get all attributes that the perk modifies
-        mods = [attr + " " + ["", "+"][val > 0] + str(val) for attr, val in self.values.items()
-                if (isinstance(val, Dice) and val.value != "0") or (not isinstance(val, Dice) and val != 0)]
+        mods = [attr + " " + ["", "+"][type(val) == str or val > 0] + str(val) for attr, val in self.values.items() if str(val) != "0"]
         return self.name + ("" if len(mods) == 0 else " (" + ", ".join(mods) + ")")
 
 
@@ -105,7 +105,7 @@ class AttackClass:
         self.owner = owner_actor
         self.name = name or "Default"
         self.to_hit = Dice(to_hit) or Dice("2d6")
-        self.damage = Dice(damage) or owner_actor.damage
+        self.damage = damage or owner_actor.damage
         self.type = attack_type or "Weapon"
         self.spellLevel = spell_level or 0
 
@@ -150,29 +150,42 @@ class AttackClass:
         # If we missed, we're good. If we hit, roll damage and subtract target armour.
         if hit:
             # Calculate and deal damage.
-            damage = self.damage.roll()  # Todo: Add support for damage buffs.
             target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)]
-            damage_vals = [damage] + target_armour_neg
+            all_attrs = [self.damage] + self.owner.list_attribute("Weapon Damage", False)
+            damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
             damage_dealt = max(0, sum(damage_vals))
             string += " Dealt " + prettify_ints(damage_vals) + " = " + str(damage_dealt) + " damage; "
-            # Subtract health and report status.
-            target_actor.cur_HP -= damage_dealt
-            target_dead = target_actor.cur_HP <= 0
-            new_HP_str = str(target_actor.cur_HP) + "/" + str(target_actor.max_HP)
-            string += target_actor.name + (" is dead. (" + new_HP_str + ")" if target_dead else " " + new_HP_str)
+            # Deal damage to the actor and report status.
+            string += target_actor.take_damage(damage_dealt)
         return string
 
     #
     # Blasting spells: roll attack dice + spell level <= own PSY - spells prepped; affected by armour
-    def __blasting_attack(self, target_actor, to_hit, damage):
-        return ""
+    def __blasting_attack(self, target_actor):
+        # Similar to the one above. Roll to hit, add all modifiers, check to see if we hit.
+        rolled_vals = [self.to_hit.roll(), self.spellLevel] # Dodge doesn't work on targets when casting spells
+        target_vals = self.owner.list_attribute("PSY")
+        # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
+        hit, string = compute_roll(rolled_vals, target_vals)
+        if hit:
+            # Calc and deal damage again, armour is a thing here.
+            target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)]
+            all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
+            damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
+            damage_dealt = max(0, sum(damage_vals))
+            string += " Dealt " + prettify_ints(damage_vals) + " = " + str(damage_dealt) + " damage; "
+            # Deal damage to the actor and report status.
+            string += target_actor.take_damage(damage_dealt)
+        return string
 
     # Psychic: target rolls 2d6 <= own PSY - spells prepped to resist; not affected by armour.
-    def __psychic_attack(self, target_actor, damage):
+    def __psychic_attack(self, target_actor):
         return "Not implemented."
 
     def __str__(self):
-        return self.name + ", " + str(self.type) + ", dice: " + self.to_hit.value + ", damage: " + self.damage.value + \
+        return self.name + ", " + str(self.type) + \
+               ", dice: " + self.to_hit.value + \
+               ", damage: " + self.damage.value + \
                " (level, if a spell: " + str(self.spellLevel) + ")"
 
     # I know it's a hack, but I don't care
@@ -191,7 +204,7 @@ class Actor:
             'PSY': psy,  # Psychic Ability
             'END': end,  # Base Endurance (max HP before any modifiers)
             'Armour': armour,  # Armour
-            'Damage': Dice(damage)  # Default weapon damage
+            'Damage': damage  # Default weapon damage
         }
         # Now parse attacks.
         if attacks is None:
@@ -216,9 +229,10 @@ class Actor:
     def list_attribute(self, attribute, return_zero_if_empty=None):
         if return_zero_if_empty is None:
             return_zero_if_empty = True
-        result = [self.attributes.get(attribute)] + [x.values.get(attribute) for x in self.perks]
+        result = [self.attributes.get(attribute)] + \
+                 [x.values.get(attribute) for x in self.perks if x.turns_remaining > 0]
         # Filter out all zeroes by default...
-        result = list(filter(None, result))
+        result = list(filter(lambda x: x is not None and str(x) != '0', result))
         # ... but return a single zero if the final list is empty and the option is selected
         return result or ([0] if return_zero_if_empty else result)
 
@@ -241,9 +255,17 @@ class Actor:
         return attack_string + attack.resolve(target_actor)
 
     #
+    # A method for taking damage. Returns current HP/max HP, and whether the target is dead (if it is).
+    def take_damage(self, damage_dealt):
+        self.cur_HP -= damage_dealt
+        dead = self.cur_HP <= 0
+        new_HP_str = str(self.cur_HP) + "/" + str(self.max_HP)
+        return self.name + (" is dead. (" + new_HP_str + ")" if dead else " " + new_HP_str)
+
+    #
     def __str__(self):
         # And so is damage, because it consists of "Dice" objects.
-        total_damage = " + ".join([x.value for x in self.list_attribute('Damage') if x != 0 and x.value != "0"])
+        total_damage = " + ".join([x for x in self.list_attribute('Damage') if x != 0 and x != "0"])
         # And also perks: if we're affected by any perks, list them. One on each line, prettily indented.
         perks = "" if len(self.perks) == 0 \
                    else "\n    Affected by: " + (",\n" + " " * 17).join(map(lambda x: str(x), self.perks))
@@ -259,8 +281,12 @@ class Actor:
 
 #############################################
 class Battlefield:
+    # This is a very ham-fisted quote-unquote "singleton" implementation. Why? Because.
+    active_battlefield = None
+
     def __init__(self, actors=None):
         self.actors = actors or []
+        Battlefield.active_battlefield = self
 
     def add(self, actors):
         self.actors.extend(actors)
@@ -304,7 +330,7 @@ class Interpreter(cmd.Cmd):
 
     def do_status(self):
         """Displays the current status of the battlefield."""
-        battlefield.status()
+        Battlefield.active_battlefield.status()
 
     do_s = do_battlefield = do_status
 
@@ -319,8 +345,8 @@ class Interpreter(cmd.Cmd):
 
     def do_attack(self, args):
         params = args.split(" ")
-        actor = battlefield.get_actor(params[0])
-        target = battlefield.get_actor(params[1])
+        actor = Battlefield.active_battlefield.get_actor(params[0])
+        target = Battlefield.active_battlefield.get_actor(params[1])
         attack = params[2] if len(params) >= 3 else None
         if actor is None or target is None:
             print("Invalid combatants specified. Try again.")
