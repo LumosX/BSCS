@@ -1,5 +1,7 @@
 import re
 import random
+import cmd
+import os
 
 
 #############################################
@@ -52,7 +54,7 @@ class Perk:
             "Dodge": extra_dodge or Dice("0"),  # For stuff like Dodging Technique
         }
 
-    # TODO: define the ToString method.
+    #
     # e.g. "Dodging Technique (Dodge +1)" or "Prepared Spells (PSY -1)" or "Skill Amulet (FPR +7, Armour +7)"
     def __str__(self):
         # Get all attributes that the perk modifies
@@ -278,3 +280,74 @@ class Battlefield:
             if result is None:
                 print("Invalid actor specified:", index)
             return result
+
+
+##############################################################################################################
+def log_string(addition):
+    with open("combatLog.txt", "a+", encoding="utf-8") as file:
+        file.write(addition)
+        file.flush()
+
+
+# noinspection PyMethodMayBeStatic,PyUnusedLocal,SpellCheckingInspection
+class Interpreter(cmd.Cmd):
+    prompt = "\n>>>>> Awaiting command: "
+
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+
+    def do_exit(self, *args):
+        """Exit the simulator."""
+        return True
+
+    do_EOF = do_x = do_q = do_quit = do_exit
+
+    def do_status(self):
+        """Displays the current status of the battlefield."""
+        battlefield.status()
+
+    do_s = do_battlefield = do_status
+
+    def do_log(self, arg):
+        log_string(arg + "\n")
+
+    def do_roll(self, arg):
+        dice = Dice(arg)
+        print("Rolling", dice.value + "; got", dice.roll())
+
+    do_r = do_roll
+
+    def do_attack(self, args):
+        params = args.split(" ")
+        actor = battlefield.get_actor(params[0])
+        target = battlefield.get_actor(params[1])
+        attack = params[2] if len(params) >= 3 else None
+        if actor is None or target is None:
+            print("Invalid combatants specified. Try again.")
+            return False
+        # If all's well, do the attack
+        result = actor.attack(target, attack)
+        log_string(result + "\n")
+        print(result)
+
+    do_a = do_attack
+
+    def do_clear(self, _):
+        """Clears the screen from previous application output."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    do_cls = do_clear
+
+    def do_help(self, arg):
+        """List available commands."""
+        # TODO This needs to be replaced completely with something that looks better.
+        cmd.Cmd.do_help(self, arg)
+
+    do_h = do_help
+
+    def emptyline(self):
+        pass
+
+    def default(self, line):
+        command, arg, line = self.parseline(line)
+        print('Invalid command: "' + command + '"')
