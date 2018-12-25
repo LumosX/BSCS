@@ -2,6 +2,7 @@ import re
 import random
 import cmd
 import os
+import shlex
 
 #############################################
 class Dice:
@@ -122,7 +123,7 @@ class AttackClass:
                            ("2d6"          if x[1] is None else x[1]),  # Dice roll
                            (default_damage if x[2] is None else x[2]),  # Damage
                            ("Weapon"       if x[3] is None else x[3]),  # Type
-                           (0              if x[4] is None else x[4]))  # Type
+                           (0              if x[4] is None else x[4]))  # Spell level
 
     #
     # Resolves an attack. By calling the specific function for each type of attack.
@@ -134,6 +135,10 @@ class AttackClass:
             return self.__blasting_attack(target_actor)
         elif self.type == "Psychic":
             return self.__psychic_attack(target_actor)
+        elif self.type == "GuaranteedDamage":
+            return self.__guaranteed_attack(target_actor)
+        elif self.type == "GuaranteedIgnoreArmour":
+            return self.__guaranteed_ap_attack(target_actor)
         else:
             print("Invalid attack type specified:", self.type)
             return
@@ -181,6 +186,29 @@ class AttackClass:
     # Psychic: target rolls 2d6 <= own PSY - spells prepped to resist; not affected by armour.
     def __psychic_attack(self, target_actor):
         return "Not implemented."
+        
+    # "Guaranteed, Armour-Piercing": Icon's Retributive Fire. Always hits and ignores armour.
+    def __guaranteed_ap_attack(self, target_actor):
+        # Calc and deal damage, no rolls.
+        all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
+        damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs))
+        damage_dealt = max(0, sum(damage_vals))
+        string = "Dealt " + str(damage_dealt) + " damage; "
+        # Deal damage to the actor and report status.
+        string += target_actor.take_damage(damage_dealt)
+        return string
+        
+    # "Guaranteed": Hacky usage. Always hits, but takes armour into account
+    def __guaranteed_attack(self, target_actor):
+        # Calc and deal damage, no rolls.
+        all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
+        target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)]
+        damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
+        damage_dealt = max(0, sum(damage_vals))
+        string = "Dealt " + prettify_ints(damage_vals) + " = " + str(damage_dealt) + " damage; "
+        # Deal damage to the actor and report status.
+        string += target_actor.take_damage(damage_dealt)
+        return string
 
     def __str__(self):
         return self.name + ", " + str(self.type) + \
@@ -238,21 +266,25 @@ class Actor:
 
     #
     #
-    def attack(self, target_actor, attack_name=None):
-        # Select correct attack, if available.
-        if attack_name is None:
-            attack_name = "Default"
-        matching_attacks = [x for x in self.attacks if attack_name.lower() in x.name.lower()]
-        # print(matching_attacks)
-        attack = next(iter(matching_attacks), self.attacks[0])
-        if attack is None:
-            print("No such attack found for actor", self.name)
-            return "No such attack found for actor " + self.name
+    def attack(self, target_actor, attack=None):
+        # If we've fed this method an attack definition instead of an attack name, use it directly.
+        if isinstance(attack, AttackClass):
+            target_attack = attack
+        else:
+            # Select correct attack, if available.
+            if attack is None:
+                attack = "Default"
+            matching_attacks = [x for x in self.attacks if attack.lower() in x.name.lower()]
+            # print(matching_attacks)
+            target_attack = next(iter(matching_attacks), self.attacks[0])
+            if target_attack is None:
+                print("No such attack found for actor", self.name)
+                return "No such attack found for actor " + self.name
 
         # Print attack statement
         attack_string = self.name + " attacks " + target_actor.name + \
-                        ("" if attack.name == "Default" else " using " + attack.name) + ". "
-        return attack_string + attack.resolve(target_actor)
+                        ("" if target_attack.name == "Default" else " using " + target_attack.name) + ". "
+        return attack_string + target_attack.resolve(target_actor)
 
     #
     # A method for taking damage. Returns current HP/max HP, and whether the target is dead (if it is).
@@ -328,7 +360,7 @@ class Interpreter(cmd.Cmd):
 
     do_EOF = do_x = do_q = do_quit = do_exit
 
-    def do_status(self):
+    def do_status(self, *args):
         """Displays the current status of the battlefield."""
         Battlefield.active_battlefield.status()
 
@@ -344,19 +376,77 @@ class Interpreter(cmd.Cmd):
     do_r = do_roll
 
     def do_attack(self, args):
-        params = args.split(" ")
+        params = shlex.split(args)
         actor = Battlefield.active_battlefield.get_actor(params[0])
-        target = Battlefield.active_battlefield.get_actor(params[1])
+        targets = params[1].split(",")
         attack = params[2] if len(params) >= 3 else None
-        if actor is None or target is None:
-            print("Invalid combatants specified. Try again.")
-            return False
-        # If all's well, do the attack
-        result = actor.attack(target, attack)
-        log_string(result + "\n")
-        print(result)
+        # Natively supports multiattacks
+        for t in targets:
+            target = Battlefield.active_battlefield.get_actor(t)
+            if actor is None or target is None:
+                print("Invalid combatants specified. Try again.")
+            else:
+                # If all's well, do the attack
+                result = actor.attack(target, attack)
+                log_string(result + "\n")
+                print(result)
 
     do_a = do_attack
+    
+    #
+    # This is a way for an actor to deal guaranteed damage to another one, bypassing attacks
+    def do_damage(self, args):
+        params = shlex.split(args)
+        actor = Battlefield.active_battlefield.get_actor(params[0])
+        targets = params[1].split(",")
+        damage = params[2]
+        name = params[3] if len(params) > 3 else "an ability"
+        attack = AttackClass(actor, name=name, damage=damage, attack_type="GuaranteedDamage")
+        # Natively supports multiattacks
+        for t in targets:
+            target = Battlefield.active_battlefield.get_actor(t)
+            if actor is None or target is None:
+                print("Invalid combatant specified. Try again.")
+            else:
+                # If all's well, do the attack
+                result = actor.attack(target, attack)
+                log_string(result + "\n")
+                print(result)
+              
+    #
+    # And this is the same, but the damage is armour-piercing.
+    def do_ap_damage(self, args):
+        params = shlex.split(args)
+        actor = Battlefield.active_battlefield.get_actor(params[0])
+        targets = params[1].split(",")
+        damage = params[2] or 0
+        name = params[3] if len(params) > 3 else "an ability"
+        attack = AttackClass(actor, name=name, damage=damage, attack_type="GuaranteedIgnoreArmour", spell_level=0)
+        # Natively supports multiattacks
+        for t in targets:
+            target = Battlefield.active_battlefield.get_actor(t)
+            if actor is None or target is None:
+                print("Invalid combatant specified. Try again.")
+            else:
+                # If all's well, do the attack
+                result = actor.attack(target, attack)
+                log_string(result + "\n")
+                print(result)
+                
+    #
+    def do_heal(self, args):
+        params = shlex.split(args)
+        actor = Battlefield.active_battlefield.get_actor(params[0])
+        amount = max(0, int(params[1]) if len(params) > 1 else 0)
+        result = actor.name + " is healed for " + str(amount) + "; " + actor.take_damage(-1 * amount)
+        log_string(result + "\n")
+        print(result)
+    
+    
+    #
+    def do_exec(self, args):
+        exec(args)
+        print("Command executed.")
 
     def do_clear(self, _):
         """Clears the screen from previous application output."""
