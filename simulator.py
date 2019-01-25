@@ -30,13 +30,7 @@ enchanter = Actor("Enchanter", fpr=4, awa=7, psy=12, armour=2, end=30, damage="1
 
 battlefield = Battlefield([
     warrior, trickster, sage, enchanter,
-    Actor("Wight 1", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 2", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 3", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 4", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 5", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 6", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
-    Actor("Wight 7", fpr=7, awa=6, psy=8, armour=2, end=15, damage="1d6+1"),
+    Actor("Susurrien", fpr=8, awa=9, psy=10, armour=0, end=80, damage="4d6"),
     # Actor("Icon", fpr=9, awa=9, psy=9, armour=2, end=55, damage="5d6", attacks=[
         # Attack("his sword"),
         # Attack("Retributive Fire", to_hit="0", damage="1", attack_type="GuaranteedIgnoreArmour"),

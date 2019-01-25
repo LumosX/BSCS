@@ -79,7 +79,8 @@ def prettify_ints(int_list):
 
 # Generic function for the "(ROLLED X <=> Y)" output we need for everything.
 # Returns true if the roll is equal to or under the target
-def compute_roll(rolled_vals, target_vals):
+# noinspection SpellCheckingInspection
+def compute_roll(rolled_vals, target_vals, message_success=None, message_fail=None):
     roll_total = sum([int(x) for x in rolled_vals])
     roll_target = sum([int(x) for x in target_vals])
 
@@ -88,9 +89,16 @@ def compute_roll(rolled_vals, target_vals):
         sign = "<"
     elif roll_total > roll_target:
         sign = ">"
-    roll_string = "(ROLLED " + prettify_ints(rolled_vals) + " " + sign + " " + prettify_ints(target_vals) + ") "
+
     hit = sign == "=" or sign == "<"
-    roll_string += "Hit!" if hit else "Miss!"
+
+    # Use a special hit/miss message if given (useful for psychic spells)
+    msg_pos = "Hit!" if message_success is None else message_success
+    msg_neg = "Miss!" if message_fail is None else message_fail
+    message = msg_pos if hit else msg_neg
+
+    roll_string = "(ROLLED {0} {1} {2}) {3}"\
+        .format(prettify_ints(rolled_vals), sign, prettify_ints(target_vals), message)
     return hit, roll_string
 
 
@@ -101,6 +109,7 @@ def Attack(name, to_hit=None, damage=None, attack_type=None, spell_level=None):
     return name, to_hit, damage, attack_type, spell_level
 
 
+# noinspection SpellCheckingInspection
 class AttackClass:
     def __init__(self, owner_actor, name=None, to_hit=None, damage=None, attack_type=None, spell_level=None):
         self.owner = owner_actor
@@ -159,7 +168,7 @@ class AttackClass:
             all_attrs = [self.damage] + self.owner.list_attribute("Weapon Damage", False)
             damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
             damage_dealt = max(0, sum(damage_vals))
-            string += " Dealt " + prettify_ints(damage_vals) + " = " + str(damage_dealt) + " damage; "
+            string += " Dealt {0} = {1} damage; ".format(prettify_ints(damage_vals), str(damage_dealt))
             # Deal damage to the actor and report status.
             string += target_actor.take_damage(damage_dealt)
         return string
@@ -168,7 +177,7 @@ class AttackClass:
     # Blasting spells: roll attack dice + spell level <= own PSY - spells prepped; affected by armour
     def __blasting_attack(self, target_actor):
         # Similar to the one above. Roll to hit, add all modifiers, check to see if we hit.
-        rolled_vals = [self.to_hit.roll(), self.spellLevel] # Dodge doesn't work on targets when casting spells
+        rolled_vals = [self.to_hit.roll(), self.spellLevel]  # Dodge doesn't work on targets when casting spells
         target_vals = self.owner.list_attribute("PSY")
         # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
         hit, string = compute_roll(rolled_vals, target_vals)
@@ -178,16 +187,30 @@ class AttackClass:
             all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
             damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
             damage_dealt = max(0, sum(damage_vals))
-            string += " Dealt " + prettify_ints(damage_vals) + " = " + str(damage_dealt) + " damage; "
+            string += " Dealt {0} = {1} damage; ".format(prettify_ints(damage_vals), str(damage_dealt))
             # Deal damage to the actor and report status.
             string += target_actor.take_damage(damage_dealt)
         return string
 
-    # Psychic: target rolls 2d6 <= own PSY - spells prepped to resist; not affected by armour.
+    # Psychic: target rolls 2d6 <= own PSY - spells prepped to resist; not affected by armour; Caster must cast as well
     def __psychic_attack(self, target_actor):
-        return "Not implemented."
-        
-    # "Guaranteed, Armour-Piercing": Icon's Retributive Fire. Always hits and ignores armour.
+        # Similar to the one above. Roll to hit, add all modifiers, check to see if we hit.
+        rolled_vals = [self.to_hit.roll(), self.spellLevel]  # Dodge doesn't work on targets when casting spells
+        target_vals = self.owner.list_attribute("PSY")
+        # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
+        hit, string = compute_roll(rolled_vals, target_vals)
+        if hit:
+            string += " " + target_actor.name + " attempts to resist... "
+            # The target must attempt to resist it now.
+            target_psy = target_actor.list_attribute("Armour", True)
+            resist_roll = Dice("2d6").roll()
+            _, message = compute_roll(resist_roll, target_psy, "Success!", "Failure!")
+            string += message
+
+            # TODO: perhaps deal damage. Right now it needs to be done manually.
+        return string
+
+    # "Guaranteed, Armour-Piercing": Like Icon's Retributive Fire. Always hits and ignores armour.
     def __guaranteed_ap_attack(self, target_actor):
         # Calc and deal damage, no rolls.
         all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
@@ -198,7 +221,7 @@ class AttackClass:
         string += target_actor.take_damage(damage_dealt)
         return string
         
-    # "Guaranteed": Hacky usage. Always hits, but takes armour into account
+    # "Guaranteed": Always hits, but takes armour into account. Useful in some edge cases.
     def __guaranteed_attack(self, target_actor):
         # Calc and deal damage, no rolls.
         all_attrs = [self.damage] + self.owner.list_attribute("Spell Damage", False)
