@@ -41,7 +41,8 @@ class Dice:
 # A perk is applied to an actor and modifies THIS actor's properties.
 class Perk:
     def __init__(self, name, fpr=None, awa=None, psy=None, armour=None, end=None, to_hit=None,
-                 weapon_damage=None, spell_damage=None, turns=None, extra_dodge=None):
+                 weapon_damage=None, spell_damage=None, turns=None, extra_dodge=None, invulnerability_threshold=None,
+                 resist_all=False):
         self.name = name
         self.turns_remaining = turns or 1500000  # If no turns have been specified, make it "eternal"
         self.values = {
@@ -54,6 +55,10 @@ class Perk:
             "Weapon Damage": weapon_damage or "0",  # Weapon damage mods only
             "Spell Damage": spell_damage or "0",  # Spell damage mods only (both blasting and psychic)
             "Dodge": extra_dodge or "0",  # For stuff like Dodging Technique
+            # For the invulnerability in Doomwalk: rolling (1d6) above the threshold negates physical attacks.
+            "Invulnerability": invulnerability_threshold or 10,
+            # For the ankh's "resistance" in Doomwalk: halve damage and roudn up
+            "Resist All": resist_all,
         }
 
     #
@@ -105,19 +110,21 @@ def compute_roll(rolled_vals, target_vals, message_success=None, message_fail=No
 # Use this to make defining "attack tuple notation" easier to read.
 # Tried named tuples, but their optional parameters are version dependent or some other bullshit, not worth it.
 # noinspection PyPep8Naming
-def Attack(name, to_hit=None, damage=None, attack_type=None, spell_level=None):
-    return name, to_hit, damage, attack_type, spell_level
+def Attack(name, to_hit=None, damage=None, attack_type=None, spell_level=None, fpr_bonus=None):
+    return name, to_hit, damage, attack_type, spell_level, fpr_bonus
 
 
 # noinspection SpellCheckingInspection
 class AttackClass:
-    def __init__(self, owner_actor, name=None, to_hit=None, damage=None, attack_type=None, spell_level=None):
+    def __init__(self, owner_actor, name=None, to_hit=None, damage=None,
+                 attack_type=None, spell_level=None, fpr_bonus=None):
         self.owner = owner_actor
         self.name = name or "Default"
         self.to_hit = Dice(to_hit) or Dice("2d6")
         self.damage = damage or owner_actor.damage
         self.type = attack_type or "Weapon"
         self.spellLevel = spell_level or 0
+        self.fpr_bonus = fpr_bonus or 0
 
     # Easier generator for actor constructors.
     @classmethod
@@ -132,7 +139,8 @@ class AttackClass:
                            ("2d6"          if x[1] is None else x[1]),  # Dice roll
                            (default_damage if x[2] is None else x[2]),  # Damage
                            ("Weapon"       if x[3] is None else x[3]),  # Type
-                           (0              if x[4] is None else x[4]))  # Spell level
+                           (0              if x[4] is None else x[4]),  # Spell level
+                           (0              if x[5] is None else x[5]))  # Fighting Prowess bonus
 
     #
     # Resolves an attack. By calling the specific function for each type of attack.
@@ -159,16 +167,40 @@ class AttackClass:
         # Roll to hit first and add all relevant modifiers to this
         rolled_vals = [self.to_hit.roll()] + target_actor.list_attribute("Dodge", False)
         target_vals = self.owner.list_attribute("FPR")
+
+        # Add the potential FPR bonus to the attack if necessary.
+        if self.fpr_bonus > 0:
+            target_vals.append(self.fpr_bonus)
+
         # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
         hit, string = compute_roll(rolled_vals, target_vals)
         # If we missed, we're good. If we hit, roll damage and subtract target armour.
         if hit:
+            # Try invullnerability for the target.
+            invuln_threshold = target_actor.list_attribute("Invulnerability", False)[0]  # this is a hack
+            invuln_roll = Dice("1d6").roll()
+            if invuln_roll >= invuln_threshold:
+                string += " Invulnerability triggered! ({0} >= {1}) Damage negated!"\
+                    .format(invuln_roll, invuln_threshold)
+                return string
+            # If it didn't trigger, still report the roll for good measure.
+            elif 7 > invuln_threshold > invuln_roll:
+                string += " (Invuln fail, {0} < {1})".format(invuln_roll, invuln_threshold)
+
             # Calculate and deal damage.
             target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)]
             all_attrs = [self.damage] + self.owner.list_attribute("Weapon Damage", False)
             damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
             damage_dealt = max(0, sum(damage_vals))
-            string += " Dealt {0} = {1} damage; ".format(prettify_ints(damage_vals), str(damage_dealt))
+
+            # Now check for damage resistance (it's false if not set to true):
+            resist = ""
+            print(target_actor.list_attribute("Resist All", False))
+            if target_actor.list_attribute("Resist All", False)[0]:  # this is a dirty hack as well
+                resist = " (half {0})".format(damage_dealt)
+                damage_dealt = -(-damage_dealt // 2)  # Divide the negative = round down the negative = round up
+
+            string += " Dealt {0} = {1} damage{2}; ".format(prettify_ints(damage_vals), str(damage_dealt), resist)
             # Deal damage to the actor and report status.
             string += target_actor.take_damage(damage_dealt)
         return string
@@ -255,7 +287,9 @@ class Actor:
             'PSY': psy,  # Psychic Ability
             'END': end,  # Base Endurance (max HP before any modifiers)
             'Armour': armour,  # Armour
-            'Damage': damage  # Default weapon damage
+            'Damage': damage,  # Default weapon damage
+            'Invulnerability': 10,  # The character's "invulnerability threshold"
+            'Resist All': False,    # Whether he has a resistance to all weapon damage.
         }
         # Now parse attacks.
         if attacks is None:
