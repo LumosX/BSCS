@@ -56,7 +56,7 @@ class Perk:
             "Spell Damage": spell_damage or "0",  # Spell damage mods only (both blasting and psychic)
             "Dodge": extra_dodge or "0",  # For stuff like Dodging Technique
             # For the invulnerability in Doomwalk: rolling (1d6) above the threshold negates physical attacks.
-            "Invulnerability": invulnerability_threshold or 10,
+            "Invulnerability": invulnerability_threshold or 0,
             # For the ankh's "resistance" in Doomwalk: halve damage and roudn up
             "Resist All": resist_all,
         }
@@ -64,8 +64,10 @@ class Perk:
     #
     # e.g. "Dodging Technique (Dodge +1)" or "Prepared Spells (PSY -1)" or "Skill Amulet (FPR +7, Armour +7)"
     def __str__(self):
-        # Get all attributes that the perk modifies
-        mods = [attr + " " + ["", "+"][type(val) == str or val > 0] + str(val) for attr, val in self.values.items() if str(val) != "0"]
+        # Get all attributes that the perk modifies. If bools, print out just the name, otherwise print out the other one too.
+        mods = [attr + " " + str(val) if val != True else attr
+                for attr, val in self.values.items() 
+                if (bool(val) != False and str(val) != "0")]
         return self.name + ("" if len(mods) == 0 else " (" + ", ".join(mods) + ")")
 
 
@@ -165,7 +167,7 @@ class AttackClass:
     # noinspection PyPep8Naming
     def __weapon_attack(self, target_actor):
         # Roll to hit first and add all relevant modifiers to this
-        rolled_vals = [self.to_hit.roll()] + target_actor.list_attribute("Dodge", False)
+        rolled_vals = [self.to_hit.roll()] + [Dice(x).roll() for x in target_actor.list_attribute("Dodge", False)]
         target_vals = self.owner.list_attribute("FPR")
 
         # Add the potential FPR bonus to the attack if necessary.
@@ -177,9 +179,9 @@ class AttackClass:
         # If we missed, we're good. If we hit, roll damage and subtract target armour.
         if hit:
             # Try invullnerability for the target.
-            invuln_threshold = target_actor.list_attribute("Invulnerability", False)[0]  # this is a hack
+            invuln_threshold = target_actor.list_attribute("Invulnerability", True)[0]  # this is a hack
             invuln_roll = Dice("1d6").roll()
-            if invuln_roll >= invuln_threshold:
+            if invuln_threshold > 0 and invuln_roll >= invuln_threshold:
                 string += " Invulnerability triggered! ({0} >= {1}) Damage negated!"\
                     .format(invuln_roll, invuln_threshold)
                 return string
@@ -195,7 +197,6 @@ class AttackClass:
 
             # Now check for damage resistance (it's false if not set to true):
             resist = ""
-            print(target_actor.list_attribute("Resist All", False))
             if target_actor.list_attribute("Resist All", False)[0]:  # this is a dirty hack as well
                 resist = " (half {0})".format(damage_dealt)
                 damage_dealt = -(-damage_dealt // 2)  # Divide the negative = round down the negative = round up
@@ -288,7 +289,7 @@ class Actor:
             'END': end,  # Base Endurance (max HP before any modifiers)
             'Armour': armour,  # Armour
             'Damage': damage,  # Default weapon damage
-            'Invulnerability': 10,  # The character's "invulnerability threshold"
+            'Invulnerability': 0,  # The character's "invulnerability threshold"
             'Resist All': False,    # Whether he has a resistance to all weapon damage.
         }
         # Now parse attacks.
@@ -431,11 +432,37 @@ class Interpreter(cmd.Cmd):
         print("Rolling", dice.value + "; got", dice.roll())
 
     do_r = do_roll
+    
+    #
+    # Add or remove perks (such as dodge)
+    def do_perk(self, args):
+        params = shlex.split(args)
+        # First param is either "add" or "remove"
+        goal = params[0]
+        # Then the affected actor
+        actor = Battlefield.active_battlefield.get_actor(params[1])
+        # Then a string which is either a perk to be "exec"'d, or the name of the perk to remove.
+        perk_str = params[2]
+        if goal == "add":
+            new_perk = eval("Perk(" + perk_str + ")")
+            actor.perks.append(new_perk)
+        elif goal == "remove":
+            for perk in actor.perks:
+                if perk.name == perk_str:
+                    actor.perks.remove(perk)
+                    break
+        else:
+            print('Invalid command. You may only "add" or "remove" perks.')
+        
+    
 
     def do_attack(self, args):
         params = shlex.split(args)
+        # First the attacker
         actor = Battlefield.active_battlefield.get_actor(params[0])
+        # Then the target (or a list of targets)
         targets = params[1].split(",")
+        # Then the name of the attack
         attack = params[2] if len(params) >= 3 else None
         # Natively supports multiattacks
         for t in targets:
@@ -454,9 +481,13 @@ class Interpreter(cmd.Cmd):
     # This is a way for an actor to deal guaranteed damage to another one, bypassing attacks
     def do_damage(self, args):
         params = shlex.split(args)
+        # First the attacker
         actor = Battlefield.active_battlefield.get_actor(params[0])
+        # Then the target or list of targets
         targets = params[1].split(",")
+        # Then the damage, as dice
         damage = params[2]
+        # Then the name of the ability to be logged
         name = params[3] if len(params) > 3 else "an ability"
         attack = AttackClass(actor, name=name, damage=damage, attack_type="GuaranteedDamage")
         # Natively supports multiattacks
@@ -474,9 +505,13 @@ class Interpreter(cmd.Cmd):
     # And this is the same, but the damage is armour-piercing.
     def do_ap_damage(self, args):
         params = shlex.split(args)
+        # First the attacker
         actor = Battlefield.active_battlefield.get_actor(params[0])
+        # Then the target or list of targets
         targets = params[1].split(",")
-        damage = params[2] or 0
+        # Then the damage, as dice
+        damage = params[2]
+        # Then the name of the ability to be logged
         name = params[3] if len(params) > 3 else "an ability"
         attack = AttackClass(actor, name=name, damage=damage, attack_type="GuaranteedIgnoreArmour", spell_level=0)
         # Natively supports multiattacks
