@@ -8,17 +8,19 @@ warrior = Actor("Sir Richard", fpr=9, awa=7, psy=6, armour=4, end=43, damage="3d
     Attack("his crossbow", damage="1d6"),
 ], perks=[
     Perk("Styx-touched", invulnerability_threshold=6),
+    Perk("Myorg's Blessing", weapon_damage="1"),
     # Perk("Ankh of Life", resist_all=True),
 ])
-trickster = Actor("Trickster", fpr=7, awa=8, psy=7, armour=3, end=43, damage="2d6+2", attacks=[
+trickster = Actor("Trickster", fpr=7, awa=9, psy=7, armour=3, end=43, damage="2d6+2", attacks=[
     Attack("his sword", damage="2d6+2"),
-    Attack("his bow", damage="1d6"),
+    Attack("his magic bow", damage="1d6", fpr_bonus=1),
+    Attack("his magic bow and magic arrows", damage="1d6+3", fpr_bonus=1),
 ], perks=[
     Perk("Dodging Technique", extra_dodge="1d6"),
     #Perk("Dissembler", fpr=-1, awa=-1), 
     # Perk("Ankh of Life", resist_all=True),
 ])
-sage = Actor("Mentok", fpr=8, awa=8, psy=9, armour=5, end=46, damage="2d6+2", attacks=[
+sage = Actor("Mentok", fpr=9, awa=8, psy=9, armour=5, end=46, damage="2d6+2", attacks=[
     Attack("his quarterstaff", damage="2d6+2"),
     Attack("his bow", to_hit="2d6", damage="1d6", attack_type="Weapon"),
     Attack("Quarterstaff Technique", "2d8", "3d6+2", "Weapon"),
@@ -27,7 +29,7 @@ sage = Actor("Mentok", fpr=8, awa=8, psy=9, armour=5, end=46, damage="2d6+2", at
     Perk("Styx-touched", invulnerability_threshold=6),
     # Perk("Ankh of Life", resist_all=True),
 ])
-enchanter = Actor("Enchanter", fpr=4, awa=7, psy=11, armour=2, end=35, damage="2d6+1", attacks=[
+enchanter = Actor("Enchanter", fpr=4, awa=7, psy=12, armour=2, end=35, damage="2d6+1", attacks=[
     Attack("his sword"),
     Attack("Swordthrust", to_hit="1d6", damage="3d6+3", attack_type="Blasting", spell_level=2),
     Attack("Nemesis Bolt", "1d6", "7d6+7", "Blasting", 5),
@@ -56,9 +58,9 @@ battlefield = Battlefield([
         # Perk("Prepared Spells", psy=-1),
     # ]),
     
-    Actor("Ogre 1", fpr=5, awa=5, psy=6, armour=2, end=25, damage="3d6"),
-    Actor("Ogre 2", fpr=5, awa=5, psy=6, armour=2, end=25, damage="3d6"),
-    Actor("Ogre 3", fpr=5, awa=5, psy=6, armour=2, end=25, damage="3d6"),
+    Actor("Harbinger 1", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
+    Actor("Harbinger 2", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
+    Actor("Harbinger 3", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
     
 
 

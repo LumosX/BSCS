@@ -69,6 +69,13 @@ class Perk:
                 for attr, val in self.values.items() 
                 if (bool(val) != False and str(val) != "0")]
         return self.name + ("" if len(mods) == 0 else " (" + ", ".join(mods) + ")")
+    
+    #
+    # Override the equals method because we're fancy like that
+    def __eq__(self, other):
+        if isinstance(other, Perk):
+            return (self.name == other.name and self.values == self.values)
+        return False
 
 
 #############################################
@@ -434,7 +441,7 @@ class Interpreter(cmd.Cmd):
     do_r = do_roll
     
     #
-    # Add or remove perks (such as dodge)
+    # Add or remove perks
     def do_perk(self, args):
         params = shlex.split(args)
         # First param is either "add" or "remove"
@@ -443,19 +450,37 @@ class Interpreter(cmd.Cmd):
         actor = Battlefield.active_battlefield.get_actor(params[1])
         # Then a string which is either a perk to be "exec"'d, or the name of the perk to remove.
         perk_str = params[2]
+        new_perk = eval("Perk(" + perk_str + ")")
         if goal == "add":
-            new_perk = eval("Perk(" + perk_str + ")")
             actor.perks.append(new_perk)
         elif goal == "remove":
             for perk in actor.perks:
-                if perk.name == perk_str:
+                if perk == new_perk:
                     actor.perks.remove(perk)
                     break
         else:
             print('Invalid command. You may only "add" or "remove" perks.')
-        
     
-
+    #
+    # Toggle dodge. Easier to do.
+    def do_toggledodge(self, args):
+        # First and only param is the target actor.
+        actor = Battlefield.active_battlefield.get_actor(args)
+        
+        dodge_perk = Perk("Defensive stance (dodging)", extra_dodge="1d6")
+        
+        # If the actor is already dodging, remove the perk; else add it
+        perk_found = False
+        for perk in actor.perks:
+            if perk == dodge_perk:
+                actor.perks.remove(perk)
+                perk_found = True
+                break
+        # If the perk was never found, we need to add it instead.
+        if perk_found == False:
+            actor.perks.append(dodge_perk)
+            
+    #
     def do_attack(self, args):
         params = shlex.split(args)
         # First the attacker
