@@ -16,14 +16,15 @@ trickster = Actor("Trickster", fpr=7, awa=9, psy=7, armour=3, end=43, damage="2d
     Attack("his magic bow", damage="1d6", fpr_bonus=1),
     Attack("his magic bow and magic arrows", damage="1d6+3", fpr_bonus=1),
 ], perks=[
-    Perk("Dodging Technique", extra_dodge="1d6"),
+    Perk("Danger Sense", extra_dodge="1d6", fpr=1),
     #Perk("Dissembler", fpr=-1, awa=-1), 
     # Perk("Ankh of Life", resist_all=True),
 ])
 sage = Actor("Mentok", fpr=9, awa=8, psy=9, armour=5, end=46, damage="2d6+2", attacks=[
-    Attack("his quarterstaff", damage="2d6+2"),
+    Attack("the Staff of Might", damage="2d6+3", fpr_bonus=1),
     Attack("his bow", to_hit="2d6", damage="1d6", attack_type="Weapon"),
-    Attack("Quarterstaff Technique", "2d8", "3d6+2", "Weapon"),
+    Attack("Quarterstaff Technique", to_hit="2d8", damage="3d6+3", fpr_bonus=1),
+    Attack("Volcano Spray", to_hit="2d6", damage="1d6", target_value=10, attack_type="Blasting"), # From the Staff of Might
 ], perks=[
     #Perk("Dissembler", fpr=-1, awa=-1), 
     Perk("Styx-touched", invulnerability_threshold=6),
@@ -43,6 +44,10 @@ enchanter = Actor("Enchanter", fpr=4, awa=7, psy=12, armour=2, end=35, damage="2
 
 battlefield = Battlefield([
     warrior, trickster, sage, enchanter,
+    
+    Actor("Karunaz", fpr=13, awa=11, psy=10, armour=0, end=100, damage="9d6"),
+    
+    
     # Actor("Susurrien", fpr=8, awa=9, psy=10, armour=0, end=80, damage="4d6"),
 
     # Icon in Demon's Claw
@@ -58,9 +63,11 @@ battlefield = Battlefield([
         # Perk("Prepared Spells", psy=-1),
     # ]),
     
-    Actor("Harbinger 1", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
-    Actor("Harbinger 2", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
-    Actor("Harbinger 3", fpr=8, awa=8, psy=6, armour=5, end=70, damage="5d6"),
+    Actor("Disciple 1", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
+    Actor("Disciple 2", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
+    Actor("Disciple 3", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
+    Actor("Disciple 4", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
+    Actor("Disciple 5", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
     
 
 

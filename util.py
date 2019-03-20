@@ -119,14 +119,14 @@ def compute_roll(rolled_vals, target_vals, message_success=None, message_fail=No
 # Use this to make defining "attack tuple notation" easier to read.
 # Tried named tuples, but their optional parameters are version dependent or some other bullshit, not worth it.
 # noinspection PyPep8Naming
-def Attack(name, to_hit=None, damage=None, attack_type=None, spell_level=None, fpr_bonus=None):
-    return name, to_hit, damage, attack_type, spell_level, fpr_bonus
+def Attack(name, to_hit=None, damage=None, attack_type=None, spell_level=None, fpr_bonus=None, target_value=None):
+    return name, to_hit, damage, attack_type, spell_level, fpr_bonus, target_value
 
 
 # noinspection SpellCheckingInspection
 class AttackClass:
     def __init__(self, owner_actor, name=None, to_hit=None, damage=None,
-                 attack_type=None, spell_level=None, fpr_bonus=None):
+                 attack_type=None, spell_level=None, fpr_bonus=None, override_target=None):
         self.owner = owner_actor
         self.name = name or "Default"
         self.to_hit = Dice(to_hit) or Dice("2d6")
@@ -134,6 +134,7 @@ class AttackClass:
         self.type = attack_type or "Weapon"
         self.spellLevel = spell_level or 0
         self.fpr_bonus = fpr_bonus or 0
+        self.override_target= override_target # If the target value is overridden, such as the Staff of Might's Volcano Spray attack.
 
     # Easier generator for actor constructors.
     @classmethod
@@ -149,7 +150,8 @@ class AttackClass:
                            (default_damage if x[2] is None else x[2]),  # Damage
                            ("Weapon"       if x[3] is None else x[3]),  # Type
                            (0              if x[4] is None else x[4]),  # Spell level
-                           (0              if x[5] is None else x[5]))  # Fighting Prowess bonus
+                           (0              if x[5] is None else x[5]),  # Fighting Prowess bonus
+                           (None           if x[6] is None else x[6]))  # Target value override
 
     #
     # Resolves an attack. By calling the specific function for each type of attack.
@@ -159,6 +161,8 @@ class AttackClass:
             return self.__weapon_attack(target_actor)
         elif self.type == "Blasting":
             return self.__blasting_attack(target_actor)
+        elif self.type == "IgnoreArmour":
+            return self.__weapon_attack(target_actor, ignore_armour=True)
         elif self.type == "Psychic":
             return self.__psychic_attack(target_actor)
         elif self.type == "GuaranteedDamage":
@@ -172,11 +176,14 @@ class AttackClass:
     #
     # Weapon attacks: roll attack dice + target perks dodge <= own FPR + own perks FPR; affected by armour
     # noinspection PyPep8Naming
-    def __weapon_attack(self, target_actor):
+    def __weapon_attack(self, target_actor, ignore_armour=False):
         # Roll to hit first and add all relevant modifiers to this
         rolled_vals = [self.to_hit.roll()] + [Dice(x).roll() for x in target_actor.list_attribute("Dodge", False)]
-        target_vals = self.owner.list_attribute("FPR")
-
+        if self.override_target is None:
+            target_vals = self.owner.list_attribute("FPR")
+        else:
+            target_vals = [self.override_target]
+            
         # Add the potential FPR bonus to the attack if necessary.
         if self.fpr_bonus > 0:
             target_vals.append(self.fpr_bonus)
@@ -197,7 +204,7 @@ class AttackClass:
                 string += " (Invuln fail, {0} < {1})".format(invuln_roll, invuln_threshold)
 
             # Calculate and deal damage.
-            target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)]
+            target_armour_neg = [-x for x in target_actor.list_attribute("Armour", True)] if ignore_armour is False else []
             all_attrs = [self.damage] + self.owner.list_attribute("Weapon Damage", False)
             damage_vals = list(map(lambda x: Dice(x).roll(), all_attrs)) + target_armour_neg
             damage_dealt = max(0, sum(damage_vals))
@@ -218,7 +225,11 @@ class AttackClass:
     def __blasting_attack(self, target_actor):
         # Similar to the one above. Roll to hit, add all modifiers, check to see if we hit.
         rolled_vals = [self.to_hit.roll(), self.spellLevel]  # Dodge doesn't work on targets when casting spells
-        target_vals = self.owner.list_attribute("PSY")
+        if self.override_target is None:
+            target_vals = self.owner.list_attribute("PSY")
+        else:
+            target_vals = [self.override_target]
+        
         # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
         hit, string = compute_roll(rolled_vals, target_vals)
         if hit:
@@ -236,7 +247,11 @@ class AttackClass:
     def __psychic_attack(self, target_actor):
         # Similar to the one above. Roll to hit, add all modifiers, check to see if we hit.
         rolled_vals = [self.to_hit.roll(), self.spellLevel]  # Dodge doesn't work on targets when casting spells
-        target_vals = self.owner.list_attribute("PSY")
+        
+        if self.override_target is None:
+            target_vals = self.owner.list_attribute("PSY")
+        else:
+            target_vals = [self.override_target]
         # At this point string holds "(rolled X <=> Y) Hit!/Miss!"
         hit, string = compute_roll(rolled_vals, target_vals)
         if hit:
@@ -475,10 +490,16 @@ class Interpreter(cmd.Cmd):
             if perk == dodge_perk:
                 actor.perks.remove(perk)
                 perk_found = True
+                result = actor.name + " is no longer dodging."
                 break
         # If the perk was never found, we need to add it instead.
         if perk_found == False:
             actor.perks.append(dodge_perk)
+            result = actor.name + " is now dodging."
+        
+        # Now print and log the result.
+        log_string(result + "\n")
+        print(result)
             
     #
     def do_attack(self, args):
