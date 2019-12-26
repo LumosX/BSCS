@@ -8,12 +8,11 @@ This is a simple utility that semi-automates combat encounters for the [Blood Sw
 * Battlefields: sets of actors (players or enemies) that facilitate simple attacking logic
 * Maintaining actor states across rounds (HP tracking)
 * Custom statement logging (useful for leaving yourself notes)
+* All spells supported (blasting & psychic)
+* Perks and status effects can be added or removed manually at any time.
 
 ## TODO:
-* Support psychic spells
-* Support "perks" (e.g. the Trickster's Dodging Technique or status modifiers like Nighthowl)
-* Initiative tracking?
-* Time tracking (for stuff like Nighthowl)?
+* Track turns and initiative orders, plus automatic adding and removal of effects like Nighthowl)
 * An "undo" function?
-* Pretty "help" screen that lists commands and aliases
+* Pretty "help" screen that lists commands and aliases -- right now it's there but not informative
 * Tab-completion when selecting attacks or filling in actor names.

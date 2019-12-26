@@ -463,7 +463,7 @@ class Interpreter(cmd.Cmd):
         goal = params[0]
         # Then the affected actor
         actor = Battlefield.active_battlefield.get_actor(params[1])
-        # Then a string which is either a perk to be "exec"'d, or the name of the perk to remove.
+        # Then a string which is either a perk to be "eval"'d, or the name of the perk to remove.
         perk_str = params[2]
         new_perk = eval("Perk(" + perk_str + ")")
         if goal == "add":

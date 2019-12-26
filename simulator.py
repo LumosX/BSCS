@@ -46,6 +46,7 @@ battlefield = Battlefield([
     warrior, trickster, sage, enchanter,
     
     Actor("Karunaz", fpr=13, awa=11, psy=10, armour=0, end=100, damage="9d6"),
+    Actor("Phantasm", fpr=8, awa=7, psy=7, armour=3, end=30, damage="3d6"),
     
     
     # Actor("Susurrien", fpr=8, awa=9, psy=10, armour=0, end=80, damage="4d6"),
@@ -63,11 +64,10 @@ battlefield = Battlefield([
         # Perk("Prepared Spells", psy=-1),
     # ]),
     
-    Actor("Disciple 1", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
-    Actor("Disciple 2", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
-    Actor("Disciple 3", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
-    Actor("Disciple 4", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
-    Actor("Disciple 5", fpr=0, awa=0, psy=9, armour=5, end=30, damage="0"),
+    Actor("Magus Tor", fpr=12, awa=12, psy=8, armour=3, end=100, damage="8d6", attacks=[
+        Attack("a melee attack", to_hit="2d6", damage="8d6"),
+        Attack("Mirage-Bolt", to_hit="1", damage="7d6", attack_type="Blasting"),
+    ]),
     
 
 
